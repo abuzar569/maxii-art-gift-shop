@@ -45,7 +45,7 @@ export default function AdminSidebar({ open, setOpen, pathname }: Props) {
           <p className="text-xs text-gray-500 dark:text-gray-400">Admin Panel</p>
         </div>
       </div>
-
+{/* test */}
       {/* Nav links */}
       <nav className="flex-1 px-4 py-4 space-y-1">
         {navItems.map((item) => {
