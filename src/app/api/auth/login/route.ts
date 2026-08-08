@@ -6,8 +6,15 @@ import { loginSchema } from '@/schemas/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const db = await connectDB();
-    const body = await req.json();
+    // 1. Parse body
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
+
+    // 2. Validate
     const parsed = loginSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -18,13 +25,15 @@ export async function POST(req: NextRequest) {
 
     const { email, password } = parsed.data;
 
-    // Use native driver to avoid Mongoose generic type issues
+    // 3. Connect DB
+    const db = await connectDB();
+
     const collection = db.connection.db?.collection('users');
     if (!collection) {
-      return NextResponse.json({ error: 'DB error' }, { status: 500 });
+      return NextResponse.json({ error: 'Database collection unavailable' }, { status: 500 });
     }
 
-    // Seed admin if none exists
+    // 4. Seed admin on first run
     const count = await collection.countDocuments();
     if (count === 0) {
       const hashed = await bcrypt.hash(
@@ -40,36 +49,45 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 5. Find user
     const user = await collection.findOne({ email: email.toLowerCase() });
     if (!user) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    // 6. Check password
     const valid = await bcrypt.compare(password, user.password as string);
     if (!valid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
+    // 7. Sign token
     const token = signToken({
       userId: user._id.toString(),
       email: user.email as string,
-      role: user.role as string,
+      role: (user.role as string) || 'admin',
     });
 
     const response = NextResponse.json({
       token,
-      user: { email: user.email, role: user.role },
+      user: { email: user.email, role: user.role || 'admin' },
     });
 
     response.cookies.set('token', token, {
       httpOnly: true,
       path: '/',
       maxAge: 60 * 60 * 24,
+      sameSite: 'lax',
     });
 
     return response;
   } catch (err) {
-    console.error('Login error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    // Log full error for debugging
+    console.error('Login error full:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { error: 'Internal server error', detail: message },
+      { status: 500 }
+    );
   }
 }
