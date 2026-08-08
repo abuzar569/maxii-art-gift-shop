@@ -37,9 +37,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
     const parsed = orderSchema.safeParse({
       ...body,
-      quantity: Number(body.quantity),
-      totalAmount: Number(body.totalAmount),
-      advanceAmount: Number(body.advanceAmount),
+      quantity: body.quantity ? Number(body.quantity) : 1,
+      totalAmount: body.totalAmount ? Number(body.totalAmount) : 0,
+      advanceAmount: body.advanceAmount ? Number(body.advanceAmount) : 0,
     });
 
     if (!parsed.success) {
